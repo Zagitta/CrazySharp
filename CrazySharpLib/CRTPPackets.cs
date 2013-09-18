@@ -35,12 +35,12 @@ namespace CrazySharpLib
     public abstract class CRTPPacket
     {
         private readonly byte _channel;
-        private readonly PortAllocation _port;
+        private readonly byte _port;
 
         internal CRTPPacket(byte channel, PortAllocation port)
         {
             _channel = channel;
-            _port = port;
+            _port = (byte)port;
         }
 
         /// <summary>
@@ -49,7 +49,7 @@ namespace CrazySharpLib
         /// <returns>A byte combiantion of the port and channel</returns>
         protected byte GetHeaderByte()
         {
-            int val = (((int)_port) << 4) | (_channel & 0x3);
+            int val = ((_port & 0xF) << 4) | (0x3 << 2) | (_channel & 0x3);
             return (byte) val;
         }
 
@@ -59,7 +59,7 @@ namespace CrazySharpLib
 
     public class CRTPCommand : CRTPPacket
     {
-        internal CRTPCommand(byte channel) : base(channel, PortAllocation.Commander)
+        public CRTPCommand(byte channel) : base(channel, PortAllocation.Commander)
         {
         }
 
@@ -75,22 +75,24 @@ namespace CrazySharpLib
             var yawBytes = BitConverter.GetBytes(Yaw);
             var thrustBytes = BitConverter.GetBytes(Thrust);
 
-
-            var bytes = new byte[14];
-            bytes[0] = GetHeaderByte();
-
-            for (int i = 0; i < 4; i++)
+            return new[]
             {
-                //insert bytes in little endian format like done here: https://bitbucket.org/bitcraze/crazyflie-pc-client/src/2cf63fad1090d21bdd488756ae91954ea07fb576/lib/cflib/crazyflie/commander.py?at=default#cl-73
-                bytes[i] = rollBytes[i];
-                bytes[i + 4] = yawBytes[i];
-                bytes[i + 8] = pitchBytes[i];
-            }
-
-            bytes[12] = thrustBytes[0];
-            bytes[13] = thrustBytes[1];
-
-            return bytes;
+                GetHeaderByte(),
+                rollBytes[0],
+                rollBytes[1],
+                rollBytes[2],
+                rollBytes[3],
+                pitchBytes[0],
+                pitchBytes[1],
+                pitchBytes[2],
+                pitchBytes[3],
+                yawBytes[0],
+                yawBytes[1],
+                yawBytes[2],
+                yawBytes[3],
+                thrustBytes[0],
+                thrustBytes[1]
+            };
         }
     }
 

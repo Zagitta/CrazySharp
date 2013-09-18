@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using CrazySharpLib;
 
 namespace CrazySharpSandbox
@@ -13,9 +14,14 @@ namespace CrazySharpSandbox
             var dongle = CrazyFlieDongle.GetDongles().FirstOrDefault();
 
             dongle.OpenDevice();
-            
 
-            var scanChannels = dongle.ScanChannels();
+            
+            while (true)
+            {
+                dongle.SendPacket(new CRTPCommand(0) {Thrust = ushort.MaxValue/2});
+                Thread.Sleep(200);
+            }
+
         }
     }
 }

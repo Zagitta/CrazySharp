@@ -29,6 +29,8 @@ namespace CrazySharpLib
         private readonly UsbRegistry _deviceReg;
         private UsbDevice _device;
         private IUsbDevice _iDevice;
+        private UsbEndpointWriter _writer;
+        private UsbEndpointReader _reader;
         private byte _radioChannel;
         private byte[] _radioAdress;
         private DataRate _radioDataRate;
@@ -51,12 +53,14 @@ namespace CrazySharpLib
                 throw new InvalidOperationException("Unable to open the dongle, was it removed?");
             }
 
+            _writer = _device.OpenEndpointWriter(WriteEndpointID.Ep01, EndpointType.Bulk);
+            _reader = _device.OpenEndpointReader(ReadEndpointID.Ep01, 64, EndpointType.Bulk);
+
             _iDevice = _device as IUsbDevice;
 
             if (_iDevice != null)
             {
                 _iDevice.SetConfiguration(1);
-
                 _iDevice.ClaimInterface(0);
             }
 
@@ -160,6 +164,17 @@ namespace CrazySharpLib
             }
         }
 
+        public DataRate DataRate
+        {
+            get { return _dataRate; }
+            set
+            {
+                _dataRate = value;
+                SendVendorSetup(CrazyRequest.SetDataRate, (byte)value);
+            }
+        }
+
+
 
         public byte[] ScanChannels(int start = 0, int stop = 125)
         {
@@ -188,26 +203,28 @@ namespace CrazySharpLib
             return data;
         }
 
-
-        public DataRate DataRate
+        
+        public void SendPacket(CRTPPacket packet)
         {
-            get { return _dataRate; }
-            set
-            {
-                _dataRate = value;
-                SendVendorSetup(CrazyRequest.SetDataRate, (byte) value);
-            }
-        }
+            int len;
+            _writer.Write(packet.CreatePacket(), 1000, out len);
+            
+            byte[] data = new byte[64];
 
+            _reader.Read(data, 1000, out len);
+            
+        }
 
         private void Setup()
         {
             DataRate = DataRate.DR2Mbps;
+            RadioChannel = 10;
             ContinousCarrier = false;
             RadioAdress = new byte[] { 0xE7, 0xE7, 0xE7, 0xE7, 0xE7 };
             RadioPower = RadioPower.RP_0dbm;
             AutoRetryCount = 3;
             AutoRetryDelay = 32;
+            AutoAck = true;
         }
         
         private void SendVendorSetup(CrazyRequest request, byte value, byte[] data = null, short index = 0)
