@@ -19,7 +19,7 @@ namespace CrazySharpLib
         EnableAck         = 0x10,
         SetContCarrier    = 0x20,
         StartScanChannels = 0x21,
-        /*GetScanChannels = 0x21*/
+        GetScanChannels   = 0x21,
         LaunchBootloader  = 0xFF
     }
 
@@ -28,8 +28,16 @@ namespace CrazySharpLib
     {
         private readonly UsbRegistry _deviceReg;
         private UsbDevice _device;
+        private IUsbDevice _iDevice;
         private byte _radioChannel;
         private byte[] _radioAdress;
+        private DataRate _radioDataRate;
+        private bool _continousCarrier;
+        private RadioPower _radioPower;
+        private byte _autoRetryDelay;
+        private byte _autoRetryCount;
+        private bool _autoAck;
+        private DataRate _dataRate;
 
         private CrazyFlieDongle(UsbRegistry deviceReg)
         {
@@ -42,6 +50,17 @@ namespace CrazySharpLib
             {
                 throw new InvalidOperationException("Unable to open the dongle, was it removed?");
             }
+
+            _iDevice = _device as IUsbDevice;
+
+            if (_iDevice != null)
+            {
+                _iDevice.SetConfiguration(1);
+
+                _iDevice.ClaimInterface(0);
+            }
+
+            Setup();
         }
 
         public void CloseDevice()
@@ -55,6 +74,15 @@ namespace CrazySharpLib
                 throw new InvalidOperationException("Unable to close the device for unknown reasons, maybe it was removed");
         }
 
+        public bool ContinousCarrier
+        {
+            get { return _continousCarrier; }
+            set
+            {
+                _continousCarrier = value;
+                SendVendorSetup(CrazyRequest.SetContCarrier, value ? (byte)1 : (byte)0);
+            }
+        }
 
         public byte RadioChannel
         {
@@ -65,6 +93,57 @@ namespace CrazySharpLib
                     throw new ArgumentOutOfRangeException("Channel must be between 0 and 125");
 
                 _radioChannel = value;
+                SendVendorSetup(CrazyRequest.SetRadioChannel, value);
+            }
+        }
+
+        public DataRate RadioDataRate
+        {
+            get { return _radioDataRate; }
+            set
+            {
+                _radioDataRate = value;
+                SendVendorSetup(CrazyRequest.SetDataRate, (byte) value);
+            }
+        }
+
+        public RadioPower RadioPower
+        {
+            get { return _radioPower; }
+            set
+            {
+                _radioPower = value;
+                SendVendorSetup(CrazyRequest.SetRadioPower, (byte) value);
+            }
+        }
+
+        public byte AutoRetryDelay
+        {
+            get { return _autoRetryDelay; }
+            set
+            {
+                _autoRetryDelay = value;
+                SendVendorSetup(CrazyRequest.SetRadioARD, (byte) (0x80 | value));
+            }
+        }
+
+        public byte AutoRetryCount
+        {
+            get { return _autoRetryCount; }
+            set
+            {
+                _autoRetryCount = value;
+                SendVendorSetup(CrazyRequest.SetRadioARC, value);
+            }
+        }
+
+        public bool AutoAck
+        {
+            get { return _autoAck; }
+            set
+            {
+                _autoAck = value;
+                SendVendorSetup(CrazyRequest.EnableAck, (byte)(value ? 1 : 0));
             }
         }
 
@@ -77,21 +156,90 @@ namespace CrazySharpLib
                     throw new ArgumentOutOfRangeException("value", "Address must be 5 bytes long");
 
                 _radioAdress = value;
+                SendVendorSetup(CrazyRequest.SetRadioAddress, 0, value);
             }
         }
 
-        public byte DataRate { get; set; }
 
-
-
-        private void SendVendorSetup(byte request, byte value, int index = 0, byte[] data = null)
+        public byte[] ScanChannels(int start = 0, int stop = 125)
         {
-            
+            var oldChannel = RadioChannel;
 
 
+            var setup = new UsbSetupPacket(0x40, (byte)CrazyRequest.StartScanChannels, 0, 125, 0);
+
+            byte[] test = new byte[500];
+
+            int len;
+
+            if (_device.ControlTransfer(ref setup, IntPtr.Zero, 0, out len) == false)
+            {
+
+                throw new Exception("Unable to do control transfer");
+            }
+
+            byte[] data = new byte[64];
+
+            SendVendorSetup(0xC0, CrazyRequest.GetScanChannels, 0, data);
+
+            //restore old channel after scanning
+            RadioChannel = oldChannel;
+
+            return data;
         }
 
 
+        public DataRate DataRate
+        {
+            get { return _dataRate; }
+            set
+            {
+                _dataRate = value;
+                SendVendorSetup(CrazyRequest.SetDataRate, (byte) value);
+            }
+        }
+
+
+        private void Setup()
+        {
+            DataRate = DataRate.DR2Mbps;
+            ContinousCarrier = false;
+            RadioAdress = new byte[] { 0xE7, 0xE7, 0xE7, 0xE7, 0xE7 };
+            RadioPower = RadioPower.RP_0dbm;
+            AutoRetryCount = 3;
+            AutoRetryDelay = 32;
+        }
+        
+        private void SendVendorSetup(CrazyRequest request, byte value, byte[] data = null, short index = 0)
+        {
+            SendVendorSetup(0x40, request, value, data, index);
+        }
+
+        private void SendVendorSetup(byte requestType, CrazyRequest request, byte value, byte[] data = null, short index = 0)
+        {
+            short dataLen = data != null ? (short) data.Length : (short)0;
+
+            var setup = new UsbSetupPacket(requestType, (byte) request, value, index, dataLen);
+
+            int len;
+
+            if (data == null)
+            {
+                if (_device.ControlTransfer(ref setup, IntPtr.Zero, 0, out len) == false)
+                {
+                    throw new Exception("Unable to do control transfer");
+                }
+            }
+            else
+            {
+                if (_device.ControlTransfer(ref setup, data, dataLen, out len) == false)
+                {
+                    throw new Exception("Unable to do control transfer");
+                }
+            }
+
+        }
+        
 
         #region Static methods
 
@@ -101,6 +249,8 @@ namespace CrazySharpLib
         /// <returns></returns>
         public static IEnumerable<CrazyFlieDongle> GetDongles()
         {
+            //UsbDevice.ForceLibUsbWinBack = true;
+
             foreach (UsbRegistry dev in UsbDevice.AllDevices)
             {
                 if(DonglePredicate(dev))
@@ -120,4 +270,20 @@ namespace CrazySharpLib
 
         #endregion
     }
+
+    public enum RadioPower
+    {
+        RP_M18dbm = 0,
+        RP_M12dbm = 1,
+        RP_M6dbm  = 2,
+        RP_0dbm   = 3
+    }
+
+    public enum DataRate : byte
+    {
+        DR250Kbps = 0,
+        DR1Mbps = 1,
+        DR2Mbps = 2
+    }
+
 }
