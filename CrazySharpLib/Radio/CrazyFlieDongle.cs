@@ -1,29 +1,21 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using CrazySharpLib.Exceptions;
+using CrazySharpLib.Radio;
+using CrazySharpLib.Radio.Packets;
 using LibUsbDotNet;
 using LibUsbDotNet.Main;
 
 
 namespace CrazySharpLib
 {
-    enum CrazyRequest : byte
-    {
-        SetRadioChannel   = 0x01,
-        SetRadioAddress   = 0x02,
-        SetDataRate       = 0x03,
-        SetRadioPower     = 0x04,
-        SetRadioARD       = 0x05,
-        SetRadioARC       = 0x06,
-        EnableAck         = 0x10,
-        SetContCarrier    = 0x20,
-        StartScanChannels = 0x21,
-        GetScanChannels   = 0x21,
-        LaunchBootloader  = 0xFF
-    }
-
-
+    /// <summary>
+    /// A raw interface to the crazy flie dongle
+    /// </summary>
     public class CrazyFlieDongle
     {
         private readonly UsbRegistry _deviceReg;
@@ -31,22 +23,13 @@ namespace CrazySharpLib
         private IUsbDevice _iDevice;
         private UsbEndpointWriter _writer;
         private UsbEndpointReader _reader;
-        private byte _radioChannel;
-        private byte[] _radioAdress;
-        private DataRate _radioDataRate;
-        private bool _continousCarrier;
-        private RadioPower _radioPower;
-        private byte _autoRetryDelay;
-        private byte _autoRetryCount;
-        private bool _autoAck;
-        private DataRate _dataRate;
 
-        private CrazyFlieDongle(UsbRegistry deviceReg)
+        public CrazyFlieDongle(UsbRegistry deviceReg)
         {
             _deviceReg = deviceReg;
         }
 
-        public void OpenDevice()
+        public void Open()
         {
             if (_deviceReg.Open(out _device) == false)
             {
@@ -54,7 +37,7 @@ namespace CrazySharpLib
             }
 
             _writer = _device.OpenEndpointWriter(WriteEndpointID.Ep01, EndpointType.Bulk);
-            _reader = _device.OpenEndpointReader(ReadEndpointID.Ep01, 64, EndpointType.Bulk);
+            _reader = _device.OpenEndpointReader(ReadEndpointID.Ep01, 32, EndpointType.Bulk);
 
             _iDevice = _device as IUsbDevice;
 
@@ -67,16 +50,28 @@ namespace CrazySharpLib
             Setup();
         }
 
-        public void CloseDevice()
+        public void Close()
         {
             if(_device == null || _device.IsOpen == false)
             {
                 throw new InvalidOperationException("Unable to close the device because it has not yet been opened");
             }
-            
+                        
             if(_device.Close() == false)
                 throw new InvalidOperationException("Unable to close the device for unknown reasons, maybe it was removed");
         }
+        
+        #region Properties
+
+        private byte _radioChannel;
+        private byte[] _radioAdress;
+        private DataRate _radioDataRate;
+        private bool _continousCarrier;
+        private RadioPower _radioPower;
+        private byte _autoRetryDelay;
+        private byte _autoRetryCount;
+        private bool _autoAck;
+        private DataRate _dataRate;
 
         public bool ContinousCarrier
         {
@@ -94,7 +89,7 @@ namespace CrazySharpLib
             set
             {
                 if(value > 125)
-                    throw new ArgumentOutOfRangeException("Channel must be between 0 and 125");
+                    throw new ArgumentOutOfRangeException("value", "Channel must be between 0 and 125");
 
                 _radioChannel = value;
                 SendVendorSetup(CrazyRequest.SetRadioChannel, value);
@@ -175,19 +170,23 @@ namespace CrazySharpLib
         }
 
 
+        #endregion
 
+
+        //TODO: fix me
         public byte[] ScanChannels(int start = 0, int stop = 125)
         {
             var oldChannel = RadioChannel;
 
+            
+            int len = stop - start + 1;
 
-            var setup = new UsbSetupPacket(0x40, (byte)CrazyRequest.StartScanChannels, 0, 125, 0);
+            var setup = new UsbSetupPacket(0x40, (byte)CrazyRequest.StartScanChannels, start, stop, len);
 
-            byte[] test = new byte[500];
+            byte[] test = new byte[len];
 
-            int len;
 
-            if (_device.ControlTransfer(ref setup, IntPtr.Zero, 0, out len) == false)
+            if (_device.ControlTransfer(ref setup, test, len, out len) == false)
             {
 
                 throw new Exception("Unable to do control transfer");
@@ -203,16 +202,40 @@ namespace CrazySharpLib
             return data;
         }
 
-        
-        public void SendPacket(CRTPPacket packet)
+        /// <summary>
+        /// Method that sends a packet on the current channel
+        /// </summary>
+        /// <param name="packet">The packet to send, for example a CRTPCommand</param>
+        /// <returns>Returns whatever data the crazy flie decided to send back in its ack payload</returns>
+        public CRTPResponse SendPacket(CRTPPacket packet)
         {
-            int len;
-            _writer.Write(packet.CreatePacket(), 1000, out len);
-            
-            byte[] data = new byte[64];
+            //transform packet to byte array
+            var send = packet.CreatePacket();
 
-            _reader.Read(data, 1000, out len);
+            int len;
+            //write packet to radio
+            ErrorCode e = _writer.Write(send, 1000, out len);
+
+            //TODO: Check if write ever returns OK instead
+            if (e != ErrorCode.None)
+            {
+                throw new SendPacketException(e, "Error in writing to endpoint");
+            }
+
+            var buffer = new byte[64];
             
+            e = _reader.Read(buffer, 1000, out len);
+
+            if (e != ErrorCode.None)
+            {
+                throw new SendPacketException(e, "Error in reading from endpoint");
+            }
+
+            Array.Resize(ref buffer, len);
+
+            var response = new CRTPResponse(buffer);
+
+            return response;
         }
 
         private void Setup()
@@ -256,7 +279,23 @@ namespace CrazySharpLib
             }
 
         }
-        
+
+
+        enum CrazyRequest : byte
+        {
+            SetRadioChannel = 0x01,
+            SetRadioAddress = 0x02,
+            SetDataRate = 0x03,
+            SetRadioPower = 0x04,
+            SetRadioARD = 0x05,
+            SetRadioARC = 0x06,
+            EnableAck = 0x10,
+            SetContCarrier = 0x20,
+            StartScanChannels = 0x21,
+            GetScanChannels = 0x21,
+            LaunchBootloader = 0xFF
+        }
+
 
         #region Static methods
 
@@ -267,7 +306,7 @@ namespace CrazySharpLib
         public static IEnumerable<CrazyFlieDongle> GetDongles()
         {
             //UsbDevice.ForceLibUsbWinBack = true;
-
+            
             foreach (UsbRegistry dev in UsbDevice.AllDevices)
             {
                 if(DonglePredicate(dev))
@@ -287,20 +326,4 @@ namespace CrazySharpLib
 
         #endregion
     }
-
-    public enum RadioPower
-    {
-        RP_M18dbm = 0,
-        RP_M12dbm = 1,
-        RP_M6dbm  = 2,
-        RP_0dbm   = 3
-    }
-
-    public enum DataRate : byte
-    {
-        DR250Kbps = 0,
-        DR1Mbps = 1,
-        DR2Mbps = 2
-    }
-
 }

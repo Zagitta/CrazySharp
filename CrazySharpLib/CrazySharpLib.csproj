@@ -11,6 +11,8 @@
     <AssemblyName>CrazySharpLib</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <ProductVersion>12.0.0</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -37,6 +39,8 @@
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <WarningLevel>4</WarningLevel>
+    <Optimize>false</Optimize>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
     <OutputPath>bin\x86\Release\</OutputPath>
@@ -46,6 +50,7 @@
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
@@ -55,6 +60,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <WarningLevel>4</WarningLevel>
+    <Optimize>false</Optimize>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutputPath>bin\x64\Release\</OutputPath>
@@ -64,12 +71,9 @@
     <PlatformTarget>x64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="LibUsbDotNet, Version=2.2.8.104, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\Deps\libUsbDotNet\LibUsbDotNet.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -77,10 +81,29 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="LibUsbDotNet">
+      <HintPath>..\Deps\libUsbDotNet\LibUsbDotNet.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CrazyFlieDongle.cs" />
-    <Compile Include="CRTPPackets.cs" />
+    <Compile Include="CrazyCommander.cs" />
+    <Compile Include="CrazyLog.cs" />
+    <Compile Include="Misc\IndexedDictonary.cs" />
+    <Compile Include="Radio\CrazyFlieDongle.cs" />
+    <Compile Include="Radio\CrazyRadio.cs" />
+    <Compile Include="Radio\Packets\CRTPResponse.cs" />
+    <Compile Include="Misc\EventArgs.cs" />
+    <Compile Include="Radio\Packets\CRTPCommand.cs" />
+    <Compile Include="Radio\Packets\CRTPHeader.cs" />
+    <Compile Include="Radio\Packets\CRTPLog.cs" />
+    <Compile Include="Radio\Packets\CRTPPackets.cs" />
+    <Compile Include="Radio\DataRate.cs" />
+    <Compile Include="Dispatcher.cs" />
+    <Compile Include="Radio\Packets\CRTPStatus.cs" />
+    <Compile Include="Radio\RadioPower.cs" />
+    <Compile Include="Exceptions\SendPacketException.cs" />
+    <Compile Include="Radio\PortAllocation.cs" />
+    <Compile Include="ToCItem.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />

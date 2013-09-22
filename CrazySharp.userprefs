@@ -1,0 +1,15 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="CrazySharpLib/CrazyFlieDongle.cs">
+    <Files>
+      <File FileName="CrazySharpSandbox/Program.cs" Line="16" Column="1" />
+      <File FileName="CrazySharpLib/CrazyFlieDongle.cs" Line="247" Column="74" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore>
+      <Breakpoint file="/media/ssd/programmering/github/CrazySharp/CrazySharpSandbox/Program.cs" line="16" column="1" />
+    </BreakpointStore>
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
